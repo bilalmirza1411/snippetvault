@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import "./App.css";
 
-// Where your Flask API lives
-const API = "http://localhost:3001";
+// Where your Flask API lives (set VITE_API_URL when deployed)
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
 // The shape of one snippet coming back from the API
 type Snippet = {
@@ -25,10 +25,16 @@ export default function App() {
   const [ms, setMs] = useState<number | null>(null); // how long the last fetch took
   const [error, setError] = useState("");
 
-  // add-snippet form fields
+  // form fields (used for both adding and editing)
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [source, setSource] = useState("");
+
+  // null = the form is adding a new snippet; a number = editing that snippet's id
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  // lets us scroll the page down to the form when Edit is clicked
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Get snippets from the API: all of them if the search box is empty, otherwise search
   async function load(q: string, m: Mode) {
@@ -58,28 +64,49 @@ export default function App() {
     load(query, mode);
   }
 
-  async function handleAdd(e: FormEvent) {
+  // Empty the form and go back to "add" mode
+  function resetForm() {
+    setTitle("");
+    setContent("");
+    setSource("");
+    setEditingId(null);
+  }
+
+  // One submit handler for the form: POST when adding, PUT when editing
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    const isEditing = editingId !== null;
     try {
-      const res = await fetch(`${API}/snippets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content, source: source || null }),
-      });
+      const res = await fetch(
+        isEditing ? `${API}/snippets/${editingId}` : `${API}/snippets`,
+        {
+          method: isEditing ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, content, source: source || null }),
+        }
+      );
       if (!res.ok) throw new Error("Server returned " + res.status);
-      setTitle("");
-      setContent("");
-      setSource("");
+      resetForm();
       load(query, mode); // refresh the list
     } catch {
       setError("Couldn't save the snippet.");
     }
   }
 
+  // Edit clicked: copy the snippet into the form and scroll to it
+  function startEdit(s: Snippet) {
+    setEditingId(s.id);
+    setTitle(s.title);
+    setContent(s.content);
+    setSource(s.source ?? ""); // null becomes an empty box
+    formRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
+
   async function handleDelete(id: number) {
     try {
       await fetch(`${API}/snippets/${id}`, { method: "DELETE" });
       setSnippets(snippets.filter((s) => s.id !== id)); // remove it from the screen
+      if (editingId === id) resetForm(); // don't keep editing something that's gone
     } catch {
       setError("Couldn't delete the snippet.");
     }
@@ -129,7 +156,10 @@ export default function App() {
           <li key={s.id} className="card">
             <div className="card-head">
               <h3>{s.title}</h3>
-              <button onClick={() => handleDelete(s.id)}>Delete</button>
+              <div className="actions">
+                <button onClick={() => startEdit(s)}>Edit</button>
+                <button onClick={() => handleDelete(s.id)}>Delete</button>
+              </div>
             </div>
             <pre className="code">
               <code>{s.content}</code>
@@ -140,8 +170,8 @@ export default function App() {
         ))}
       </ul>
 
-      <h2>Add a snippet</h2>
-      <form onSubmit={handleAdd} className="col">
+      <h2>{editingId === null ? "Add a snippet" : "Edit snippet"}</h2>
+      <form onSubmit={handleSubmit} className="col" ref={formRef}>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -161,7 +191,14 @@ export default function App() {
           onChange={(e) => setSource(e.target.value)}
           placeholder="Source (optional)"
         />
-        <button type="submit">Add</button>
+        <div className="actions">
+          <button type="submit">{editingId === null ? "Add" : "Save"}</button>
+          {editingId !== null && (
+            <button type="button" onClick={resetForm}>
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
     </main>
   );
