@@ -1,122 +1,150 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import "./App.css";
 
-function App() {
-  const [count, setCount] = useState(0)
+// Where the Flask API is.
+const API = "http://localhost:3001";
 
+// The type of one snippet coming back from the API
+type Snippet = {
+  id: number;
+  title: string;
+  content: string;
+  source: string | null;
+  created_at: string;
+  score?: number; // only present on fuzzy search results
+};
+
+type Mode = "exact" | "fuzzy";
+
+export default function App() {
+  //  state
+  const [snippets, setSnippets] = useState<Snippet[]>([]);
+  const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<Mode>("fuzzy");
+  const [ms, setMs] = useState<number | null>(null); // how long the last fetch took
+  const [error, setError] = useState("");
+
+  // add snippet form fields
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [source, setSource] = useState("");
+
+  // Get snippets from the API: all of them if the search box is empty, otherwise search
+  async function load(q: string, m: Mode) {
+    setError("");
+    try {
+      const start = performance.now();
+      const url = q.trim()
+        ? `${API}/snippets/search?q=${encodeURIComponent(q)}&mode=${m}`
+        : `${API}/snippets`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Server returned " + res.status);
+      const data: Snippet[] = await res.json();
+      setMs(Math.round(performance.now() - start));
+      setSnippets(data);
+    } catch {
+      setError("Couldn't reach the API. Is Flask running on port 3001?");
+    }
+  }
+
+  // Runs once when the page first loads: show everything
+  useEffect(() => {
+    load("", "fuzzy");
+  }, []);
+
+  function handleSearch(e: FormEvent) {
+    e.preventDefault(); // stop the browser reloading the page
+    load(query, mode);
+  }
+
+  async function handleAdd(e: FormEvent) {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API}/snippets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content, source: source || null }),
+      });
+      if (!res.ok) throw new Error("Server returned " + res.status);
+      setTitle("");
+      setContent("");
+      setSource("");
+      load(query, mode); // refresh the list
+    } catch {
+      setError("Couldn't save the snippet.");
+    }
+  }
+
+  async function handleDelete(id: number) {
+    try {
+      await fetch(`${API}/snippets/${id}`, { method: "DELETE" });
+      setSnippets(snippets.filter((s) => s.id !== id)); // remove it from the screen
+    } catch {
+      setError("Couldn't delete the snippet.");
+    }
+  }
+
+   
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <main className="app">
+      <h1>Snippet Vault</h1>
 
-      <div className="ticks"></div>
+      <form onSubmit={handleSearch} className="row">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search snippets..."
+        />
+        <select value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
+          <option value="fuzzy">Fuzzy</option>
+          <option value="exact">Exact</option>
+        </select>
+        <button type="submit">Search</button>
+      </form>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      {error && <p className="error">{error}</p>}
+      {ms !== null && (
+        <p className="meta">
+          {snippets.length} result(s) in {ms} ms
+        </p>
+      )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      <ul className="list">
+        {snippets.map((s) => (
+          <li key={s.id} className="card">
+            <div className="card-head">
+              <h3>{s.title}</h3>
+              <button onClick={() => handleDelete(s.id)}>Delete</button>
+            </div>
+            <p>{s.content}</p>
+            {s.source && <small>Source: {s.source}</small>}
+            {s.score !== undefined && <small> · typos: {s.score}</small>}
+          </li>
+        ))}
+      </ul>
+
+      <h2>Add a snippet</h2>
+      <form onSubmit={handleAdd} className="col">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Title"
+          required
+        />
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Content"
+          required
+        />
+        <input
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          placeholder="Source (optional)"
+        />
+        <button type="submit">Add</button>
+      </form>
+    </main>
+  );
 }
-
-export default App
