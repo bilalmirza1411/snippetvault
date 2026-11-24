@@ -7,6 +7,7 @@ input, textarea, select, button { padding: 8px; font: inherit; }
 .card { border: 1px solid #8884; border-radius: 8px; padding: 12px; margin: 12px 0; }
 .card-head { display: flex; justify-content: space-between; align-items: center; }
 .card h3 { margin: 0; }
+.actions { display: flex; gap: 8px; }
 .meta { opacity: 0.7; }
 .error { color: #c0392b; }
 
