@@ -3,10 +3,25 @@
 .row input { flex: 1; }
 .col { display: flex; flex-direction: column; gap: 8px; }
 input, textarea, select, button { padding: 8px; font: inherit; }
-textarea { min-height: 80px; }
 .list { list-style: none; padding: 0; }
 .card { border: 1px solid #8884; border-radius: 8px; padding: 12px; margin: 12px 0; }
 .card-head { display: flex; justify-content: space-between; align-items: center; }
 .card h3 { margin: 0; }
 .meta { opacity: 0.7; }
 .error { color: #c0392b; }
+
+/* code display and code input */
+.code {
+  font-family: ui-monospace, Consolas, "Courier New", monospace;
+  font-size: 14px;
+  tab-size: 4;
+}
+pre.code {
+  background: #8881;
+  border-radius: 6px;
+  padding: 12px;
+  margin: 8px 0;
+  overflow-x: auto;   /* long lines scroll sideways instead of wrapping */
+  white-space: pre;
+}
+textarea.code { min-height: 140px; }

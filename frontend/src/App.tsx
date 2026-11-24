@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 import "./App.css";
 
-// Where the Flask API is.
+// Where your Flask API lives
 const API = "http://localhost:3001";
 
-// The type of one snippet coming back from the API
+// The shape of one snippet coming back from the API
 type Snippet = {
   id: number;
   title: string;
@@ -18,14 +18,14 @@ type Snippet = {
 type Mode = "exact" | "fuzzy";
 
 export default function App() {
-  //  state
+  // ---- state: data that, when it changes, redraws the screen ----
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<Mode>("fuzzy");
   const [ms, setMs] = useState<number | null>(null); // how long the last fetch took
   const [error, setError] = useState("");
 
-  // add snippet form fields
+  // add-snippet form fields
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [source, setSource] = useState("");
@@ -85,7 +85,21 @@ export default function App() {
     }
   }
 
-   
+  // Pressing Tab in the content box inserts spaces instead of jumping to the next field
+  function handleTab(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== "Tab") return;
+    e.preventDefault();
+    const el = e.currentTarget;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    setContent(content.slice(0, start) + "    " + content.slice(end));
+    // after React redraws, put the cursor just after the inserted spaces
+    requestAnimationFrame(() => {
+      el.selectionStart = el.selectionEnd = start + 4;
+    });
+  }
+
+  // ---- what gets drawn ----
   return (
     <main className="app">
       <h1>Snippet Vault</h1>
@@ -117,7 +131,9 @@ export default function App() {
               <h3>{s.title}</h3>
               <button onClick={() => handleDelete(s.id)}>Delete</button>
             </div>
-            <p>{s.content}</p>
+            <pre className="code">
+              <code>{s.content}</code>
+            </pre>
             {s.source && <small>Source: {s.source}</small>}
             {s.score !== undefined && <small> · typos: {s.score}</small>}
           </li>
@@ -133,9 +149,11 @@ export default function App() {
           required
         />
         <textarea
+          className="code"
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Content"
+          onKeyDown={handleTab}
+          placeholder="Content (paste code here)"
           required
         />
         <input
