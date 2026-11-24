@@ -1,8 +1,10 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 from db import get_conn
 from search.fuzzy_match import fuzzy_match
-
+from psycopg2 import errors
+from werkzeug.security import check_password_hash, generate_password_hash
+from auth import login_required, make_token
 app = Flask(__name__)
 CORS(app)
 
@@ -17,6 +19,44 @@ def query_db(sql, params=(), fetch="all"):
             if fetch == "one":
                 return cur.fetchone()
     # leaving the `with get_conn()` block commits automatically and rolls back on the case an exception is raised
+@app.post("/register") # Route to register a new user
+def register():
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    if len(username) < 3 or len(password) < 8:
+        return jsonify(error="username needs 3+ characters and password 8+"), 400
+    try:
+        row = query_db(
+            "INSERT INTO users (username, password_hash) VALUES (%s, %s) RETURNING id",
+            (username, generate_password_hash(password)),  # store the hash, never the password
+            fetch="one",
+        )
+    except errors.UniqueViolation:
+        return jsonify(error="username already taken"), 409
+    return jsonify(token=make_token(row["id"]), username=username), 201
+
+
+@app.post("/login")
+def login(): # Route to log in an existing user
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
+    row = query_db(
+        "SELECT id, password_hash FROM users WHERE username = %s",
+        (username,),
+        fetch="one",
+    )
+    # same message whether the username or the password was wrong, so attackers learn nothing
+    if not row or not check_password_hash(row["password_hash"], data.get("password") or ""):
+        return jsonify(error="wrong username or password"), 401
+    return jsonify(token=make_token(row["id"]), username=username)
+
+
+@app.get("/me")
+@login_required
+def me(): # a quick way to test that a token works
+    return jsonify(user_id=g.user_id)
+
 
 # route to create a new snippet
 @app.post("/snippets")
